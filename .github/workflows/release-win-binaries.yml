@@ -48,6 +48,9 @@ jobs:
           cd build
           cmake `
             -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }} `
+            -DBUILD_TESTING=ON `
+            -DRUN_SHORT_TESTS=ON `
+            -DRUN_LONG_TESTS=OFF `
             -DCMAKE_INSTALL_PREFIX:PATH=${{ runner.temp }}/install/ants-${{ env.ANTS_VERSION }} `
             ${{ github.workspace }}
       - name: Build
@@ -60,6 +63,11 @@ jobs:
         run: |
           cd build/ANTS-build
           cmake --install .
+      - name: Test
+        working-directory: ${{ runner.temp }}
+        run: |
+          cd build/ANTS-build
+          ctest
       - name: Pack
         working-directory: ${{ runner.temp }}
         run: |
