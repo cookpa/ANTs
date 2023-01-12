@@ -58,16 +58,16 @@ jobs:
         run: |
           cd build
           cmake --build . --config ${{ matrix.config.build_type }} --parallel
+      - name: Test
+        working-directory: ${{ runner.temp }}
+        run: |
+          cd build/ANTS-build
+          ctest -C release
       - name: Install
         working-directory: ${{ runner.temp }}
         run: |
           cd build/ANTS-build
           cmake --install .
-      - name: Test
-        working-directory: ${{ runner.temp }}
-        run: |
-          cd build/ANTS-build
-          ctest
       - name: Pack
         working-directory: ${{ runner.temp }}
         run: |

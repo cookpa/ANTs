@@ -78,7 +78,7 @@ jobs:
         shell: bash
         working-directory: ${{ runner.temp }}
         run: |
-          cd build/ANTS-build
+          cd /opt/build/ANTS-build
           ctest
       - name: Install
         shell: bash
