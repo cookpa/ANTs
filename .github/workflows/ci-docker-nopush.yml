@@ -15,16 +15,7 @@ on:
       - ready_for_review
 
 concurrency:
-  group: >-
-        ${{
-          github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && 'tag-' ||
-          github.event_name == 'pull_request' && 'pr-' ||
-          startsWith(github.ref, 'refs/heads/master') && 'master-'
-        }}${{
-          github.event_name == 'pull_request' && github.event.pull_request.number ||
-          github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && github.ref_name ||
-          startsWith(github.ref, 'refs/heads/master') && github.run_id
-        }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ !(github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) }}
 
 jobs:
