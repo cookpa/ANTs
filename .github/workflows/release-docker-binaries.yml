@@ -50,7 +50,7 @@ jobs:
       - name: Install dependencies on Centos
         if: startsWith(matrix.config.name, 'Centos7')
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             yum -y update && yum clean all
             yum -y install devtoolset-7 git zlib-devel
             curl -OL https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh
@@ -63,7 +63,7 @@ jobs:
       - name: Install dependencies on Ubuntu
         if: startsWith(matrix.config.name, 'Ubuntu-18.04')
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             apt-get update
             apt-get install -y --no-install-recommends \
               apt-transport-https \
@@ -87,7 +87,7 @@ jobs:
 
       - name: Configure
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             mkdir -p /workspace/build
             cd /workspace/build
             cmake \
@@ -102,28 +102,28 @@ jobs:
 
       - name: Build
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             cd /workspace/build
             cmake --build . --config ${{ matrix.config.build_type }} --parallel 1
           "
 
       - name: Test
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             cd /workspace/build/ANTS-build
             ctest
           "
 
       - name: Install
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             cd /workspace/build/ANTS-build
             cmake --install .
           "
 
       - name: Pack
         run: |
-          docker exec build_container bash -c "
+          docker exec --user root build_container bash -c "
             cd /workspace/install
             zip -r /workspace/${{ env.ARTIFACT }} .
           "
