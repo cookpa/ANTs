@@ -30,10 +30,27 @@ jobs:
             cxx: "g++",
             generators: "Unix Makefiles"
           }
+        - { name: "CentOS-7-GCC",
+            os_desc: centos7,
+            image: "cookpa/antscentos7base",
+            build_type: "Release",
+            cc: "gcc",
+            cxx: "g++",
+            generators: "Unix Makefiles"
+          }
         - {
             name: "Ubuntu-18.04-GCC",
             os_desc: ubuntu18.04,
             image: "ubuntu:18.04",
+            build_type: "Release",
+            cc: "gcc",
+            cxx: "g++",
+            generators: "Ninja"
+          }
+        - {
+            name: "Ubuntu-20.04-GCC",
+            os_desc: ubuntu20.04,
+            image: "ubuntu:20.04",
             build_type: "Release",
             cc: "gcc",
             cxx: "g++",
