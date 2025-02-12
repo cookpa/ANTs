@@ -41,6 +41,7 @@ jobs:
         - {
             name: "Ubuntu-18.04-GCC",
             os_desc: ubuntu18.04,
+            ubuntu_repo_label: "bionic",
             image: "ubuntu:18.04",
             build_type: "Release",
             cc: "gcc",
@@ -51,6 +52,7 @@ jobs:
             name: "Ubuntu-20.04-GCC",
             os_desc: ubuntu20.04,
             image: "ubuntu:20.04",
+            ubuntu_repo_label: "focal",
             build_type: "Release",
             cc: "gcc",
             cxx: "g++",
@@ -93,6 +95,7 @@ jobs:
         if: startsWith(matrix.config.name, 'Ubuntu')
         run: |
           docker exec --user root build_container bash -c "
+            export DEBIAN_FRONTEND=noninteractive
             apt-get update
             apt-get install -y --no-install-recommends \
               apt-transport-https \
@@ -106,7 +109,7 @@ jobs:
               wget \
               zip
             wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
-            apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ bionic main'
+            apt-add-repository -y 'deb https://apt.kitware.com/ubuntu/ ${{ matrix.config.ubuntu_repo_label }} main'
             apt-get update
             apt-get -y install cmake=${CMAKE_VERSION}-0kitware1${{ matrix.config.os_desc }}.1 cmake-data=${CMAKE_VERSION}-0kitware1${{ matrix.config.os_desc }}.1
             ninja --version
@@ -129,25 +132,25 @@ jobs:
           "
       - name: Build
         run: |
-          docker exec --user root build_container bash -c "
+          docker exec --user root build_container bash --login -c "
             cd /workspace/build
             cmake --build . --config ${{ matrix.config.build_type }} --parallel 1
           "
       - name: Test
         run: |
-          docker exec --user root build_container bash -c "
+          docker exec --user root build_container bash --login -c "
             cd /workspace/build/ANTS-build
             ctest
           "
       - name: Install
         run: |
-          docker exec --user root build_container bash -c "
+          docker exec --user root build_container bash --login -c "
             cd /workspace/build/ANTS-build
             cmake --install .
           "
       - name: Pack
         run: |
-          docker exec --user root build_container bash -c "
+          docker exec --user root build_container bash --login -c "
             cd /workspace/install
             zip -r /artifact/${{ env.ARTIFACT }} .
           "
