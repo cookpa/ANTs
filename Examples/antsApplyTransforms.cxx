@@ -180,7 +180,9 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
   using OutputMultiChannelImageType = itk::VectorImage<OutputPixelType, Dimension>;
   using OutputFiveDimensionalImageType = itk::Image<OutputPixelType, 5>;
   using OutputVectorType = itk::Vector<OutputPixelType, Dimension>;
-  using OutputDisplacementFieldType = itk::Image<OutputVectorType, Dimension>;
+  using OutputDisplacementFieldType = itk::Image<OutputVectorType, Dimension>; // used to cast displacement field pixel type
+  // define a type for vector output, can't write OutputDisplacementFieldType as an ANTsPy pointer
+  using OutputVectorImageType = itk::VectorImage<OutputPixelType, Dimension>;
 
   using RegistrationHelperType = typename ants::RegistrationHelper<T, Dimension>;
   using AffineTransformType = typename RegistrationHelperType::AffineTransformType;
@@ -819,7 +821,31 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
         caster->SetInput(reorienter->GetOutput());
         caster->Update();
 
-        ANTs::WriteImage<OutputDisplacementFieldType>(caster->GetOutput(), (outputFileName).c_str());
+        typename OutputDisplacementFieldType::Pointer outField = caster->GetOutput();
+
+        typename OutputVectorImageType::Pointer outVec = OutputVectorImageType::New();
+        outVec->SetRegions(outField->GetLargestPossibleRegion());
+        outVec->SetSpacing(outField->GetSpacing());
+        outVec->SetOrigin(outField->GetOrigin());
+        outVec->SetDirection(outField->GetDirection());
+        outVec->SetNumberOfComponentsPerPixel(Dimension);
+        outVec->Allocate();
+
+        itk::ImageRegionConstIterator<OutputDisplacementFieldType> itIn(outField, outField->GetLargestPossibleRegion());
+        itk::ImageRegionIterator<OutputVectorImageType>  itOut(outVec, outVec->GetLargestPossibleRegion());
+
+        itk::VariableLengthVector<OutputPixelType> v;
+        v.SetSize(Dimension);
+
+        for (itIn.GoToBegin(), itOut.GoToBegin(); !itIn.IsAtEnd(); ++itIn, ++itOut)
+        {
+          const auto pix = itIn.Get(); // itk::Vector<OT,Dim>
+          for (unsigned int d = 0; d < Dimension; ++d) v[d] = pix[d];
+          itOut.Set(v);
+        }
+        outVec->DisconnectPipeline();
+
+        ANTs::WriteImage<OutputVectorImageType>(outVec, (outputFileName).c_str());
       }
       else if (inputImageType == 2)
       {
