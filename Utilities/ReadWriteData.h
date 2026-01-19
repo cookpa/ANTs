@@ -289,6 +289,66 @@ ReadImage(char * fn)
   return target;
 }
 
+
+template <typename TImageType>
+void
+ReadVectorImage(itk::SmartPointer<TImageType> & target, const char * file)
+{
+  typedef TImageType                      ImageType;
+  typedef itk::ImageFileReader<ImageType> FileSourceType;
+
+  typename FileSourceType::Pointer                        reffilter = nullptr;
+
+  if (FileIsPointer(file))
+  {
+    void * ptr;
+    sscanf(file, "%p", (void **)&ptr);
+    using Scalar = typename TImageType::PixelType::ComponentType;
+    using VecImageType = itk::VectorImage<Scalar, TImageType::ImageDimension>;
+    auto vecImagePtr = *(static_cast<typename VecImageType::Pointer *>(ptr));
+    using CastFilterType = itk::CastImageFilter<VecImageType, TImageType>;
+    typename CastFilterType::Pointer caster = CastFilterType::New();
+    caster->SetInput(vecImagePtr);
+    caster->Update();
+    target = caster->GetOutput();
+    target->DisconnectPipeline();
+  }
+  else
+  {
+    // Read the image files begin
+    if (!ANTSFileExists(std::string(file)))
+    {
+      std::cerr << " file " << std::string(file) << " does not exist . " << std::endl;
+      target = nullptr;
+      return;
+    }
+    if (!ANTSFileIsImage(file))
+    {
+      std::cerr << " file " << std::string(file) << " is not recognized as a supported image format . " << std::endl;
+      target = nullptr;
+      return;
+    }
+
+    reffilter = FileSourceType::New();
+    reffilter->SetFileName(file);
+    try
+    {
+      reffilter->Update();
+    }
+    catch (const itk::ExceptionObject & e)
+    {
+      std::cerr << "Exception caught during reference file reading " << std::endl;
+      std::cerr << e << " file " << file << std::endl;
+      target = nullptr;
+      return;
+    }
+
+    target = reffilter->GetOutput();
+  }
+
+}
+
+
 template <typename ImageType>
 typename ImageType::Pointer
 ReadTensorImage(char * fn, bool takelog = true, double backgroundMD = 0.0)
@@ -751,6 +811,87 @@ WriteDisplacementField2(TField * field, std::string filename, std::string app)
   std::cout << "...done" << std::endl;
   return;
 }
+
+/** Convert a displacement field to another vector type */
+template <typename DisplacementFieldType, typename VectorImageType>
+typename VectorImageType::Pointer
+ConvertDisplacementFieldToVectorImage(DisplacementFieldType * displacementField)
+{
+  enum
+  {
+    ImageDimension = DisplacementFieldType::ImageDimension
+  };
+
+  typename VectorImageType::Pointer vectorImage = VectorImageType::New();
+
+  vectorImage->SetRegions(displacementField->GetLargestPossibleRegion());
+  vectorImage->SetSpacing(displacementField->GetSpacing());
+  vectorImage->SetOrigin(displacementField->GetOrigin());
+  vectorImage->SetDirection(displacementField->GetDirection());
+  vectorImage->SetNumberOfComponentsPerPixel(ImageDimension);
+  vectorImage->AllocateInitialized();
+
+  itk::ImageRegionIteratorWithIndex<VectorImageType> It(vectorImage,
+                                                              vectorImage->GetLargestPossibleRegion());
+
+  for (It.GoToBegin(); !It.IsAtEnd(); ++It)
+  {
+    typename DisplacementFieldType::IndexType index = It.GetIndex();
+
+    typename DisplacementFieldType::PixelType dispVoxel = displacementField->GetPixel(index);
+    typename VectorImageType::PixelType   vectorVoxel;
+    vectorVoxel.SetSize(ImageDimension);
+
+    for (itk::SizeValueType n = 0; n < ImageDimension; n++)
+    {
+        vectorVoxel[n] = dispVoxel[n];
+    }
+    It.Set(vectorVoxel);
+  }
+
+  return vectorImage;
+
+}
+
+/** Convert a vector image to a displacement field */
+template <typename VectorImageType, typename DisplacementFieldType>
+typename DisplacementFieldType::Pointer
+ConvertVectorImageToDisplacementField(VectorImageType * vectorImage)
+{
+  enum
+  {
+    ImageDimension = VectorImageType::ImageDimension
+  };
+
+  typename DisplacementFieldType::Pointer displacementField = DisplacementFieldType::New();
+
+  displacementField->SetRegions(vectorImage->GetLargestPossibleRegion());
+  displacementField->SetSpacing(vectorImage->GetSpacing());
+  displacementField->SetOrigin(vectorImage->GetOrigin());
+  displacementField->SetDirection(vectorImage->GetDirection());
+  displacementField->AllocateInitialized();
+
+  itk::ImageRegionIteratorWithIndex<DisplacementFieldType> It(displacementField,
+                                                              displacementField->GetLargestPossibleRegion());
+
+  for (It.GoToBegin(); !It.IsAtEnd(); ++It)
+  {
+    typename DisplacementFieldType::IndexType index = It.GetIndex();
+    typename DisplacementFieldType::PixelType dispVoxel = It.Get();
+    typename VectorImageType::PixelType vectorVoxel = vectorImage->GetPixel(index);
+
+    for (itk::SizeValueType n = 0; n < ImageDimension; n++)
+    {
+        dispVoxel[n] = vectorVoxel[n];
+    }
+    It.Set(dispVoxel);
+  }
+
+  return displacementField;
+
+}
+
+
 
 template <typename TTimeSeriesImageType, typename MultiChannelImageType>
 typename MultiChannelImageType::Pointer

@@ -180,7 +180,9 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
   using OutputMultiChannelImageType = itk::VectorImage<OutputPixelType, Dimension>;
   using OutputFiveDimensionalImageType = itk::Image<OutputPixelType, 5>;
   using OutputVectorType = itk::Vector<OutputPixelType, Dimension>;
-  using OutputDisplacementFieldType = itk::Image<OutputVectorType, Dimension>;
+  using OutputDisplacementFieldType = itk::Image<OutputVectorType, Dimension>; // used to cast displacement field pixel type
+  // define a type for vector output, can't write OutputDisplacementFieldType as an ANTsPy pointer
+  using OutputVectorImageType = itk::VectorImage<OutputPixelType, Dimension>;
 
   using RegistrationHelperType = typename ants::RegistrationHelper<T, Dimension>;
   using AffineTransformType = typename RegistrationHelperType::AffineTransformType;
@@ -262,7 +264,9 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
     {
       std::cout << "Input multichannel image: " << inputOption->GetFunction(0)->GetName() << std::endl;
     }
-    ReadImage<MultiChannelImageType>(multiChannelImage, (inputOption->GetFunction(0)->GetName()).c_str());
+    // Call read vector image to read in as itk::VectorImage, for compatibility with ANTsPy. Then handle internally
+    // as a time series, then output as a vector later
+    ReadVectorImage<MultiChannelImageType>(multiChannelImage, (inputOption->GetFunction(0)->GetName()).c_str());
     timeSeriesImage =
       ConvertMultiChannelImageToTimeSeriesImage<MultiChannelImageType, TimeSeriesImageType>(multiChannelImage);
   }
@@ -322,6 +326,23 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
     }
     ReadTensorImage<TensorImageType>(tensorImage, (inputOption->GetFunction(0)->GetName()).c_str(), true, defaultValue);
   }
+  else if ((inputImageType == 1 || inputImageType == 6) && inputOption && inputOption->GetNumberOfFunctions())
+  {
+    if (verbose)
+    {
+      std::cout << "Input vector image: " << inputOption->GetFunction(0)->GetName() << std::endl;
+    }
+    // use MultiChannelImageType to read in vector image as itk::VectorImage. Internally, the displacement field type
+    // is an itk::Image with itk::Vector pixels, which is different. We read as VectorImage and then convert for compatibility
+    // with antspy.
+    typename MultiChannelImageType::Pointer tmpVectorImage = nullptr;
+
+    ReadVectorImage<MultiChannelImageType>(tmpVectorImage, (inputOption->GetFunction(0)->GetName()).c_str());
+
+    // this is an image of DisplacementFieldType, which may be an actual displacement field or generic spatial vectors in
+    // physical space (inputImageType == 6) or spatial vectors in index space (inputImageType == 1)
+    vectorImage = ConvertVectorImageToDisplacementField<MultiChannelImageType, DisplacementFieldType>(tmpVectorImage);
+  }
   else if (inputImageType == 0 && inputOption && inputOption->GetNumberOfFunctions())
   {
     const std::string inputFN = inputOption->GetFunction(0)->GetName();
@@ -380,14 +401,6 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
     ReadImage<ImageType>(image, inputFN.c_str());
     inputImages.push_back(image);
   }
-  else if ((inputImageType == 1 || inputImageType == 6) && inputOption && inputOption->GetNumberOfFunctions())
-  {
-    if (verbose)
-    {
-      std::cout << "Input vector image: " << inputOption->GetFunction(0)->GetName() << std::endl;
-    }
-    ReadImage<DisplacementFieldType>(vectorImage, (inputOption->GetFunction(0)->GetName()).c_str());
-  }
   else if (outputOption && outputOption->GetNumberOfFunctions())
   {
     if (outputOption->GetFunction(0)->GetNumberOfParameters() > 1 &&
@@ -408,6 +421,16 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
       }
     }
   }
+  else
+  {
+    if (verbose)
+    {
+      std::cerr << "No input or output specified, run without args for usage" << std::endl;
+    }
+    return EXIT_FAILURE;
+  }
+
+
   /**
    * Reference image option
    */
@@ -819,7 +842,14 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
         caster->SetInput(reorienter->GetOutput());
         caster->Update();
 
-        ANTs::WriteImage<OutputDisplacementFieldType>(caster->GetOutput(), (outputFileName).c_str());
+        typename OutputDisplacementFieldType::Pointer outField = caster->GetOutput();
+
+        // Convert OutputDisplacementFieldType to OutputVectorImageType for compatibility with ANTsPy
+        // the file on disk is the same for both, but the pointer casting for antspy needs an itk::VectorImage
+        typename OutputVectorImageType::Pointer outVec =
+            ConvertDisplacementFieldToVectorImage<OutputDisplacementFieldType, OutputVectorImageType>(outField);
+
+        ANTs::WriteImage<OutputVectorImageType>(outVec, (outputFileName).c_str());
       }
       else if (inputImageType == 2)
       {
