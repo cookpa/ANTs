@@ -264,7 +264,7 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
     {
       std::cout << "Input multichannel image: " << inputOption->GetFunction(0)->GetName() << std::endl;
     }
-    ReadImage<MultiChannelImageType>(multiChannelImage, (inputOption->GetFunction(0)->GetName()).c_str());
+    ReadVectorImage<MultiChannelImageType>(multiChannelImage, (inputOption->GetFunction(0)->GetName()).c_str());
     timeSeriesImage =
       ConvertMultiChannelImageToTimeSeriesImage<MultiChannelImageType, TimeSeriesImageType>(multiChannelImage);
   }
@@ -388,7 +388,12 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
     {
       std::cout << "Input vector image: " << inputOption->GetFunction(0)->GetName() << std::endl;
     }
-    ReadImage<DisplacementFieldType>(vectorImage, (inputOption->GetFunction(0)->GetName()).c_str());
+
+    typename MultiChannelImageType::Pointer tmpVectorImage = nullptr;
+
+    ReadVectorImage<MultiChannelImageType>(tmpVectorImage, (inputOption->GetFunction(0)->GetName()).c_str());
+
+    vectorImage = ConvertVectorImageToDisplacementField<MultiChannelImageType, DisplacementFieldType>(tmpVectorImage);
   }
   else if (outputOption && outputOption->GetNumberOfFunctions())
   {
@@ -823,27 +828,8 @@ antsApplyTransforms(itk::ants::CommandLineParser::Pointer & parser, unsigned int
 
         typename OutputDisplacementFieldType::Pointer outField = caster->GetOutput();
 
-        typename OutputVectorImageType::Pointer outVec = OutputVectorImageType::New();
-        outVec->SetRegions(outField->GetLargestPossibleRegion());
-        outVec->SetSpacing(outField->GetSpacing());
-        outVec->SetOrigin(outField->GetOrigin());
-        outVec->SetDirection(outField->GetDirection());
-        outVec->SetNumberOfComponentsPerPixel(Dimension);
-        outVec->Allocate();
-
-        itk::ImageRegionConstIterator<OutputDisplacementFieldType> itIn(outField, outField->GetLargestPossibleRegion());
-        itk::ImageRegionIterator<OutputVectorImageType>  itOut(outVec, outVec->GetLargestPossibleRegion());
-
-        itk::VariableLengthVector<OutputPixelType> v;
-        v.SetSize(Dimension);
-
-        for (itIn.GoToBegin(), itOut.GoToBegin(); !itIn.IsAtEnd(); ++itIn, ++itOut)
-        {
-          const auto pix = itIn.Get(); // itk::Vector<OT,Dim>
-          for (unsigned int d = 0; d < Dimension; ++d) v[d] = pix[d];
-          itOut.Set(v);
-        }
-        outVec->DisconnectPipeline();
+        typename OutputVectorImageType::Pointer outVec =
+            ConvertDisplacementFieldToVectorImage<OutputDisplacementFieldType, OutputVectorImageType>(outField);
 
         ANTs::WriteImage<OutputVectorImageType>(outVec, (outputFileName).c_str());
       }
