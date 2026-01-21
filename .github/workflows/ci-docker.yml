@@ -56,11 +56,18 @@ jobs:
                 TAG="${TAG#v}"
                 echo "DOCKER_TAG=${DOCKER_REPO}:${TAG}" >> "$GITHUB_ENV"
                 echo "DOCKER_LATEST_TAG=${DOCKER_REPO}:latest" >> "$GITHUB_ENV"
-              fi
+              else
+                TAG="${GITHUB_REF_NAME}"
+                echo "DOCKER_TAG=${DOCKER_REPO}:${TAG}" >> "$GITHUB_ENV"
+                echo "DOCKER_LATEST_TAG=" >> "$GITHUB_ENV"
             else
-              TAG="${GITHUB_REF_NAME}"
-              echo "DOCKER_TAG=${DOCKER_REPO}:${TAG}" >> "$GITHUB_ENV"
-              echo "DOCKER_LATEST_TAG=${DOCKER_REPO}:latest" >> "$GITHUB_ENV"
+              if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+                echo "DOCKER_TAG=${DOCKER_REPO}:pr-${{ github.event.pull_request.number }}" >> "$GITHUB_ENV"
+                echo "DOCKER_LATEST_TAG=" >> "$GITHUB_ENV"
+              else
+                echo "DOCKER_TAG=${DOCKER_REPO}:${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+                echo "DOCKER_LATEST_TAG=" >> "$GITHUB_ENV"
+              fi
             fi
       -
         name: Build and load (PR) or push (commit/tag)
