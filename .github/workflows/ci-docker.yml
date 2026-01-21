@@ -15,7 +15,7 @@ on:
       - ready_for_review
 
 env:
-  DOCKER_REPO: cookpa/antspytest
+  DOCKER_REPO: cookpa/antstest
   DOCKER_TAGS: ''
 
 concurrency:
