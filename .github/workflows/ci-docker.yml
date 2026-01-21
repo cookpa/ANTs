@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: antsx/ants
+          images: cookpa/antstest
       -
         name: Login to DockerHub
         if: github.event_name != 'pull_request'
@@ -40,12 +40,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       -
-        name: Edit tag for releases
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        name: Compute Docker tag
+        shell: bash
         run: |
-          GIT_TAG="${{ github.ref }}"
-          STRIPPED_TAG="${GIT_TAG#refs/tags/v}"
-          echo "DOCKER_TAG=antsx/ants:${STRIPPED_TAG}" >> $GITHUB_ENV
+            REF="${GITHUB_REF}"
+
+            if [[ "$REF" == refs/tags/* ]]; then
+              TAG="${REF#refs/tags/}"
+
+              # Strip leading 'v' only for vA.B.C where A,B,C are integers
+              if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+                TAG="${TAG#v}"
+                echo "DOCKER_TAG=${DOCKER_REPO}:${TAG}" >> "$GITHUB_ENV"
+                echo "DOCKER_LATEST_TAG=${DOCKER_REPO}:latest" >> "$GITHUB_ENV"
+              fi
+            else
+              TAG="${GITHUB_REF_NAME}"
+              echo "DOCKER_TAG=${DOCKER_REPO}:${TAG}" >> "$GITHUB_ENV"
+              echo "DOCKER_LATEST_TAG=${DOCKER_REPO}:latest" >> "$GITHUB_ENV"
+            fi
       -
         name: Build and load (PR) or push (commit/tag)
         uses: docker/build-push-action@v5
@@ -53,13 +66,15 @@ jobs:
             context: .
             push: ${{ github.event_name != 'pull_request' }}
             load: ${{ github.event_name == 'pull_request' }}
-            tags: ${{ env.DOCKER_TAG }},${{ steps.meta.outputs.tags }}
+            tags: |
+              ${{ env.DOCKER_TAG }}
+              ${{ env.DOCKER_LATEST_TAG }}
             labels: ${{ steps.meta.outputs.labels }}
       -
         name: Export Docker image for PR
         if: github.event_name == 'pull_request'
         run: |
-          docker save antsx/ants:${{ steps.meta.outputs.version }} > ants_image.tar
+          docker save cookpa/antstest:${{ steps.meta.outputs.version }} > ants_image.tar
       -
         name: Upload PR Docker image as artifact
         if: github.event_name == 'pull_request'
