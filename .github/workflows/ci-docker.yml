@@ -15,7 +15,8 @@ on:
       - ready_for_review
 
 env:
-  DOCKER_REPO: cookpa/antstest
+  DOCKER_REPO: cookpa/antspytest
+  DOCKER_TAGS: ''
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -48,8 +49,7 @@ jobs:
         run: |
             REF="${GITHUB_REF}"
 
-            DOCKER_TAG=""
-            DOCKER_LATEST_TAG=""
+            DOCKER_TAGS=""
 
             if [[ "$REF" == refs/tags/* ]]; then
               TAG="${REF#refs/tags/}"
@@ -57,18 +57,17 @@ jobs:
               # Strip leading 'v' only for vA.B.C where A,B,C are integers
               if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                   TAG="${TAG#v}"
-                  DOCKER_LATEST_TAG="${DOCKER_REPO}:latest"
+                  DOCKER_TAGS="${DOCKER_REPO}:${TAG},${DOCKER_REPO}:latest"
+              else
+                  DOCKER_TAGS="${DOCKER_REPO}:${TAG}"
               fi
-
-              DOCKER_TAG="${DOCKER_REPO}:${TAG}"
             elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-              DOCKER_TAG="${DOCKER_REPO}:pr-${{ github.event.pull_request.number }}"
+              DOCKER_TAGS="${DOCKER_REPO}:pr-${{ github.event.pull_request.number }}"
             else
-              DOCKER_TAG="${DOCKER_REPO}:${GITHUB_REF_NAME}"
+              DOCKER_TAGS="${DOCKER_REPO}:${GITHUB_REF_NAME}"
             fi
 
-            echo "DOCKER_TAG=${DOCKER_TAG}" >> "$GITHUB_ENV"
-            echo "DOCKER_LATEST_TAG=${DOCKER_LATEST_TAG}" >> "$GITHUB_ENV"
+            echo "DOCKER_TAGS=${DOCKER_TAGS}" >> "$GITHUB_ENV"
       -
         name: Build and load (PR) or push (commit/tag)
         uses: docker/build-push-action@v5
@@ -77,8 +76,7 @@ jobs:
             push: ${{ github.event_name != 'pull_request' }}
             load: ${{ github.event_name == 'pull_request' }}
             tags: |
-              ${{ env.DOCKER_TAG }}
-              ${{ env.DOCKER_LATEST_TAG }}
+              ${{ env.DOCKER_TAGS }}
             labels: ${{ steps.meta.outputs.labels }}
       -
         name: Export Docker image for PR
