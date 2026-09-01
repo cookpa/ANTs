@@ -76,13 +76,22 @@ Optional arguments:
           0 = mean
           1 = mean of normalized intensities
           2 = median
+          3 = optimize appearance using local cross-correlation
 
-          Normalization here means dividing each image by its mean intensity.
+          For method 3, -A 0 (no sharpening) is recommended for consistency with
+          the SyGN appearance optimization described by Avants et al.
+
+          For method 1, normalization means dividing each image by its mean intensity.
+          Method 3 scales each image to [0, 1] before appearance optimization.
 
      -A   sharpening applied to template at each iteration (default 1)
           0 = none
           1 = Laplacian
           2 = Unsharp mask
+
+     -O   use an automatic Otsu foreground mask for appearance optimization with -a 3
+          0 = off (default)
+          1 = on
 
      -c:  Control for parallel computation (default 1) -- 0 == run serially,  1 == SGE qsub,
           2 == use PEXEC (localhost, see -j), 3 == Apple XGrid, 4 == PBS qsub, 5 == SLURM
@@ -269,6 +278,7 @@ function reportMappingParameters {
  Number of Modalities:              $NUMBEROFMODALITIES
  Modality weights:                  $MODALITYWEIGHTSTRING
  Image statistic:                   $STATSMETHOD
+ Appearance Otsu mask:              $APPEARANCEOTSUMASK
  Sharpening method:                 $SHARPENMETHOD
  Shape update full affine:          $AFFINE_UPDATE_FULL
 --------------------------------------------------------------------------------------
@@ -360,6 +370,19 @@ function summarizeimageset() {
         done
       ImageSetStatistics "$dim" "${output}_list.txt" "$output" 0
       rm "${output}_list.txt"
+      ;;
+    3) #optimal appearance from local cross-correlation
+      local -a appearancecommand=( antsOptimizeImageSetAppearance -d "$dim" -o "$output" )
+      if [[ $APPEARANCEOTSUMASK -eq 1 ]];
+        then
+          appearancecommand+=( -x Otsu )
+        fi
+      local image
+      for image in "${images[@]}";
+        do
+          appearancecommand+=( -i "$image" )
+        done
+      "${appearancecommand[@]}"
       ;;
   esac
 
@@ -582,6 +605,7 @@ AFFINE_UPDATE_FULL=1
 
 # Methods for averaging warped images and sharpening next template
 STATSMETHOD=1
+APPEARANCEOTSUMASK=0
 SHARPENMETHOD=1
 
 ##Getting system info from linux can be done with these variables.
@@ -604,11 +628,11 @@ if [[ $# -eq 0 || ${1:-} == "-h" ]];
 fi
 
 # reading command line arguments
-while getopts "A:T:a:b:c:d:g:h:i:j:k:m:n:o:p:s:r:t:u:v:w:x:y:z:" OPT
+while getopts "A:O:T:a:b:c:d:g:h:i:j:k:m:n:o:p:s:r:t:u:v:w:x:y:z:" OPT
   do
 
   case $OPT in
-      A|T|a|b|c|d|e|i|j|k|l|n|r|y)
+      A|O|T|a|b|c|d|e|i|j|k|l|n|r|y)
       if [[ ! $OPTARG =~ ^[0-9]+$ ]];
         then
           echo "Option -$OPT requires a non-negative integer, but received '$OPTARG'." >&2
@@ -633,6 +657,9 @@ while getopts "A:T:a:b:c:d:g:h:i:j:k:m:n:o:p:s:r:t:u:v:w:x:y:z:" OPT
    ;;
       A) # Sharpening method
       SHARPENMETHOD=$OPTARG
+   ;;
+      O) # Otsu mask for appearance optimization
+      APPEARANCEOTSUMASK=$OPTARG
    ;;
       T) # number of threads to use for each process
    NUMBER_OF_THREADS=$OPTARG
@@ -867,11 +894,23 @@ NINFILES=$#
 IMAGESETARRAY=( "$@" )
 IMAGESETVARIABLE=${IMAGESETARRAY[*]}
 
-if [[ $STATSMETHOD -lt 0 ]] || [[ $STATSMETHOD -gt 2 ]];
+if [[ $STATSMETHOD -lt 0 ]] || [[ $STATSMETHOD -gt 3 ]];
   then
   echo "Invalid stats type: using normalized mean (1)"
   STATSMETHOD=1
 fi
+
+if [[ $STATSMETHOD -eq 3 ]] && ! command -v antsOptimizeImageSetAppearance > /dev/null 2>&1;
+  then
+    echo "ERROR: -a 3 requires antsOptimizeImageSetAppearance to be available on PATH."
+    exit 1
+  fi
+
+if [[ $APPEARANCEOTSUMASK -lt 0 ]] || [[ $APPEARANCEOTSUMASK -gt 1 ]];
+  then
+    echo "Invalid appearance Otsu mask setting: using no mask (0)"
+    APPEARANCEOTSUMASK=0
+  fi
 
 if [[ $SHARPENMETHOD -lt 0 ]] || [[ $SHARPENMETHOD -gt 2 ]];
   then

@@ -168,6 +168,7 @@ endif()
 
 set(MORE_ANTS_APPS
     antsAI
+    antsOptimizeImageSetAppearance
     ANTSIntegrateVelocityField
     antsJointTensorFusion
     ImageMath

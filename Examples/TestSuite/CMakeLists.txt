@@ -975,6 +975,7 @@ set(AllANTSPrograms
  ANTSIntegrateVelocityField
  ANTSJacobian
  antsMotionCorr
+ antsOptimizeImageSetAppearance
  antsRegistration
  ANTSUseDeformationFieldToGetAffineTransform
  ANTSUseLandmarkImagesToGetAffineTransform
@@ -1042,6 +1043,14 @@ foreach(CurrProg ${AllANTSPrograms})
   add_test(NAME ${CurrProg}_HELP_SHORT COMMAND ${CurrProg} ${HELP_FLAG} ) ## Just print the help screen
   set_property(TEST ${CurrProg}_HELP_SHORT APPEND PROPERTY DEPENDS ${CurrProg}_HELP_LONG)
 endforeach()
+
+add_test(NAME antsOptimizeImageSetAppearanceFunctional
+  COMMAND ${CMAKE_COMMAND}
+  -DCREATE_IMAGE=$<TARGET_FILE:CreateImage>
+  -DOPTIMIZER=$<TARGET_FILE:antsOptimizeImageSetAppearance>
+  -DTEST_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/TEST_LOCATION
+  -P ${CMAKE_CURRENT_SOURCE_DIR}/antsOptimizeImageSetAppearanceTest.cmake
+  )
 
 ###
 #  ANTS transform testing

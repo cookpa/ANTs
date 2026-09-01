@@ -51,6 +51,8 @@
 
 #include "antsMotionCorrDiffusionDirection.h"
 
+#include "antsOptimizeImageSetAppearance.h"
+
 #include "antsSliceRegularizedRegistration.h"
 
 #include "antsRegistration.h"
